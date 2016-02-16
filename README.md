@@ -24,7 +24,7 @@ Out[11]: 'Hello'
 Using with linux shell
 
 ```
-curl -X POST -d '{"BobToJohn": "Hello"}' http://localhost:8090/send_message
+curl -X PUT -d '{"BobToJohn": "Hello"}' http://localhost:8090/send_message
 message=$(curl -X GET http://localhost:8090/get_message?message_key=BobToJohn)
 echo $message
 ```
