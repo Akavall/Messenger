@@ -16,6 +16,7 @@ type GameState struct {
 	players []Player
 	player_to_move_ind int 
 	score int 
+	winners_name string 
 }
 
 type Player struct {
@@ -91,8 +92,19 @@ func join_game (w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if players_info["name"] == (*game_state).players[0].name {
+		log.Printf("Player attempeted to join the game using the same name as the creator: %s\n", players_info["name"])
+		fmt.Fprintf(w, "Name: %s is already used\n", players_info["name"])
+		return 
+	}
+
+	if len((*game_state).players) == 2 {
+		log.Printf("Player attempted to join a game with already two players")
+		fmt.Fprintf(w, "Game uuid: %s already has two players\n", uuid_string)
+		return 
+	}
+
 	player := Player{name: players_info["name"]}
-	// TODO: check collision of players names 
 	(*game_state).players = append((*game_state).players, player)
 
 	log.Printf("Player: %s joined game: %s\n", player.name, uuid_string)
@@ -119,8 +131,10 @@ func check_status (w http.ResponseWriter, r *http.Request) {
 }
 
 // Put
-
 func make_move (w http.ResponseWriter, r *http.Request) {
+	// TODO
+	// Don't make a move when the game already
+	// has a winner
 	body, err := ioutil.ReadAll(io.LimitReader(r.Body, 1048576))
 	if err != nil {
 		panic(err)
@@ -138,17 +152,27 @@ func make_move (w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
+	// TODO: handle the case where not all fields are provided
+
 	player_name := move_info["name"]
 	game_state := GAMES[move_info["uuid"]]
 	move_str := move_info["move"]
 
 	move_int, err := strconv.Atoi(move_str)
 	if err != nil {
-		log.Fatal("Can't convert to int")
+		log.Printf("Player: %s attempted invalid move: %s\n", player_name, move_str)
+		fmt.Fprintf(w, "Can't convert: %s to int", move_str)
+	}
+
+	if move_int < 1 || move_int > 3 {
+		log.Printf("Player: %s attempted invalid move: %s\n", player_name, move_str)
+		fmt.Fprint(w, "A valid move is either 1, 2 or 3")
+		return 
 	}
 
 	ind := (*game_state).player_to_move_ind
 	if (*game_state).players[ind].name != player_name {
+		log.Printf("Player: %s attempted move out of turn\n", player_name)
 		fmt.Fprint(w, "This is not your move")
 		return 
 	}
@@ -159,55 +183,22 @@ func make_move (w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("Game Score: %d\n", (*game_state).score)
 
+	var other_player_ind int 
+
 	if (*game_state).player_to_move_ind == 0 {
-		(*game_state).player_to_move_ind = 1
+		other_player_ind = 1
 	} else {
-		(*game_state).player_to_move_ind = 0
+		other_player_ind = 0
 	}
 
+	if (*game_state).score <= 0 {
+		(*game_state).winners_name = (*game_state).players[other_player_ind].name
+		log.Printf("Player: %s has won the game\n", (*game_state).winners_name)
+		return
+	}
+
+	(*game_state).player_to_move_ind = other_player_ind
 }
-
-// Put Request
-// func (m *Messenger) send_message(w http.ResponseWriter, r *http.Request) {
-// 	body, err := ioutil.ReadAll(io.LimitReader(r.Body, 1048576))
-// 	if err != nil {
-// 		panic(err)
-// 	}
-	
-// 	err = r.Body.Close()
-// 	if err != nil {
-// 		panic(err)
-// 	}
-
-// 	new_message := map[string]string {}
-
-// 	err = json.Unmarshal(body, &new_message)
-// 	if err != nil {
-// 		panic(err)
-// 	}
-
-// 	for k, v := range new_message {
-// 		m.message_map[k] = v
-// 	}
-// }
-
-// Get Request
-// func (m *Messenger) get_message(w http.ResponseWriter, r *http.Request) {
-// 	err := r.ParseForm()
-// 	if err != nil {
-// 		panic(err)
-// 	}
-
-// 	message_key := r.Form["message_key"][0]
-	
-// 	message, ok := m.message_map[message_key]
-// 	if ok {
-// 		fmt.Fprint(w, message)
-// 	} else {
-// 		fmt.Fprint(w, "No message with that key found")
-// 	}
-// }
-
 
 func main() {
 	// messenger := Messenger{}
